@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SYSTEM-OS</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
       * {
         margin: 0;
@@ -13,7 +14,7 @@
       body {
         background: #0a0a0a;
         color: #f0f0f0;
-        font-family: monospace;
+        font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
         height: 100vh;
         display: flex;
         flex-direction: column;
@@ -22,7 +23,20 @@
         padding: 16px 20px;
         border-bottom: 1px solid #222;
         font-size: 13px;
-        color: #555;
+        color: #888;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      #header .status {
+        font-size: 11px;
+        padding: 4px 8px;
+        border-radius: 4px;
+        background: #1a1a1a;
+      }
+      #header .status.connected {
+        background: #1a3a1a;
+        color: #4ade80;
       }
       #messages {
         flex: 1;
@@ -34,10 +48,10 @@
       }
       .msg {
         max-width: 80%;
-        padding: 10px 14px;
+        padding: 12px 16px;
         border-radius: 8px;
         font-size: 14px;
-        line-height: 1.5;
+        line-height: 1.6;
       }
       .msg.user {
         background: #1a1a1a;
@@ -50,6 +64,14 @@
         align-self: flex-start;
         color: #ccc;
       }
+      .msg.system {
+        background: #1a1a2e;
+        border: 1px solid #333355;
+        align-self: center;
+        color: #888;
+        font-size: 12px;
+        max-width: 100%;
+      }
       #input-area {
         padding: 16px 20px;
         border-top: 1px solid #222;
@@ -61,72 +83,243 @@
         background: #111;
         border: 1px solid #333;
         color: #f0f0f0;
-        padding: 10px 14px;
-        border-radius: 6px;
-        font-family: monospace;
+        padding: 12px 16px;
+        border-radius: 8px;
+        font-family: inherit;
         font-size: 14px;
         outline: none;
+        transition: border-color 0.2s;
       }
       #input:focus {
-        border-color: #555;
+        border-color: #444;
       }
       #btn {
-        background: #f0f0f0;
+        background: #e0e0e0;
         color: #0a0a0a;
         border: none;
-        padding: 10px 18px;
-        border-radius: 6px;
-        font-family: monospace;
-        font-weight: bold;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-family: inherit;
+        font-weight: 600;
         cursor: pointer;
+        transition: all 0.2s;
+      }
+      #btn:hover {
+        background: #f0f0f0;
       }
       #btn:disabled {
         opacity: 0.4;
         cursor: not-allowed;
       }
+      .file-btn {
+        background: #1a1a1a;
+        color: #888;
+        border: 1px solid #333;
+        padding: 12px 16px;
+        border-radius: 8px;
+        font-family: inherit;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .file-btn:hover {
+        border-color: #444;
+        color: #aaa;
+      }
+      .typing {
+        display: flex;
+        gap: 4px;
+        padding: 12px 16px;
+      }
+      .typing span {
+        width: 8px;
+        height: 8px;
+        background: #444;
+        border-radius: 50%;
+        animation: typing 1.4s infinite;
+      }
+      .typing span:nth-child(2) { animation-delay: 0.2s; }
+      .typing span:nth-child(3) { animation-delay: 0.4s; }
+      @keyframes typing {
+        0%, 100% { opacity: 0.3; transform: translateY(0); }
+        50% { opacity: 1; transform: translateY(-4px); }
+      }
     </style>
   </head>
   <body>
-    <div id="header">SYSTEM-OS — martos</div>
+    <div id="header">
+      <span>SYSTEM-OS</span>
+      <span id="status" class="status">conectando...</span>
+    </div>
 
     <div id="messages"></div>
 
     <div id="input-area">
-      <input
-        type="file"
-        id="file-input"
-        accept=".txt,.pdf,.md,.js"
-        style="display: none"
-      />
-      <button
-        id="file-btn"
-        style="
-          background: #1a1a1a;
-          color: #888;
-          border: 1px solid #333;
-          padding: 10px 14px;
-          border-radius: 6px;
-          font-family: monospace;
-          cursor: pointer;
-        "
-      >
-        📎
-      </button>
+      <input type="file" id="file-input" accept=".txt,.pdf,.md,.js,.json" style="display: none" />
+      <button class="file-btn" id="file-btn">Adjuntar</button>
       <input id="input" placeholder="escribe aquí..." />
       <button id="btn">enviar</button>
     </div>
 
-    <script>
-      const messages = document.getElementById("messages");
+    <script type="module">
+      const SUPABASE_URL = 'https://ynjuhqjwmxbyobhpdnft.supabase.co';
+      const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InluanVocWp3bXhieW9iaHBkbmZ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2NDQ1MTQsImV4cCI6MjA5NzIyMDUxNH0.iZLMQJmP47OkfPVgBOnT5EljRuudhCRU1QZy0J0M62w';
+
+      const { createClient } = window.supabase;
+      const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+      const messagesDiv = document.getElementById("messages");
       const input = document.getElementById("input");
       const btn = document.getElementById("btn");
+      const statusEl = document.getElementById("status");
+      const fileInput = document.getElementById("file-input");
+      const fileBtn = document.getElementById("file-btn");
+
+      const userId = "demo-user";
 
       function addMsg(text, role) {
         const div = document.createElement("div");
         div.className = `msg ${role}`;
         div.textContent = text;
-        messages.appendChild(div);
-        messages.scrollTop = messages.scrollHeight;
+        messagesDiv.appendChild(div);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        return div;
+      }
+
+      function addTyping() {
+        const div = document.createElement("div");
+        div.className = "msg ai typing";
+        div.innerHTML = '<span></span><span></span><span></span>';
+        messagesDiv.appendChild(div);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        return div;
+      }
+
+      function setStatus(text, connected = false) {
+        statusEl.textContent = text;
+        statusEl.className = `status ${connected ? 'connected' : ''}`;
+      }
+
+      async function loadHistory() {
+        const { data, error } = await supabase
+          .from('devchat_memory')
+          .select('role, content, created_at')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: true })
+          .limit(20);
+
+        if (data && data.length > 0) {
+          messagesDiv.innerHTML = '';
+          data.forEach(m => {
+            if (m.content) addMsg(m.content, m.role);
+          });
+        }
+      }
+
+      async function loadMemory() {
+        const { data } = await supabase
+          .from('structured_memory')
+          .select('key, value')
+          .eq('user_id', userId);
+
+        const memory = {};
+        data?.forEach(m => {
+          if (!m.key.startsWith('file:')) {
+            memory[m.key] = m.value;
+          }
+        });
+        return memory;
+      }
+
+      async function saveMessage(role, content) {
+        await supabase.from('devchat_memory').insert({
+          user_id: userId,
+          role,
+          content
+        });
+      }
+
+      async function saveMemory(key, value) {
+        await supabase.from('structured_memory').upsert({
+          user_id: userId,
+          key,
+          value
+        }, { onConflict: 'user_id,key' });
+      }
+
+      function detectIntent(text) {
+        const lower = text.toLowerCase();
+
+        if (lower.includes('me llamo')) {
+          const match = text.match(/me llamo (\w+)/i);
+          return { type: 'save_name', value: match?.[1] };
+        }
+
+        if (lower.includes('trabajo en')) {
+          const match = text.match(/trabajo en (.+)/i);
+          return { type: 'save_project', value: match?.[1]?.trim() };
+        }
+
+        if (lower.includes('como me llamo') || lower.includes('quien soy')) {
+          return { type: 'recall_name' };
+        }
+
+        if (lower.includes('en que trabajo') || lower.includes('que proyectos')) {
+          return { type: 'recall_projects' };
+        }
+
+        return { type: 'chat' };
+      }
+
+      async function generateResponse(text, memory) {
+        const intent = detectIntent(text);
+
+        if (intent.type === 'save_name') {
+          await saveMemory('name', intent.value);
+          return `Hola ${intent.value}. Lo recordaré.`;
+        }
+
+        if (intent.type === 'save_project') {
+          const existing = memory.projects || '';
+          const projects = existing ? `${existing}, ${intent.value}` : intent.value;
+          await saveMemory('projects', projects);
+          return `Entendido. Trabajas en ${intent.value}.`;
+        }
+
+        if (intent.type === 'recall_name') {
+          if (memory.name) {
+            return `Te llamas ${memory.name}.`;
+          }
+          return `No tengo tu nombre registrado. ¿Cómo te llamas?`;
+        }
+
+        if (intent.type === 'recall_projects') {
+          if (memory.projects) {
+            return `Trabajas en: ${memory.projects}.`;
+          }
+          return `No tengo registrado en qué trabajas. ¿En qué proyectos estás?`;
+        }
+
+        const responses = [
+          `Entiendo. Cuéntame más sobre eso.`,
+          `Interesante. ¿Y qué más?`,
+          `Ok, estoy escuchando.`,
+          `¿Puedes dar más detalles?`,
+        ];
+
+        const lower = text.toLowerCase();
+
+        if (lower.includes('hola') || lower.includes('hey')) {
+          return `¡Hola! Soy SYSTEM-OS, tu asistente con memoria persistente. Puedo recordar tu nombre y proyectos.`;
+        }
+
+        if (lower.includes('ayuda')) {
+          return `Puedo:
+- Recordar tu nombre (dime: "me llamo X")
+- Recordar tus proyectos (dime: "trabajo en X")
+- Recordar lo que me cuentas (dime: "en que trabajo?" o "como me llamo?")`;
+        }
+
+        return responses[Math.floor(Math.random() * responses.length)];
       }
 
       async function send() {
@@ -137,17 +330,20 @@
         input.value = "";
         btn.disabled = true;
 
-        try {
-          const res = await fetch("/devchat", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ userId: "admin", message: text }),
-          });
+        await saveMessage('user', text);
 
-          const data = await res.json();
-          addMsg(data.response || "sin respuesta", "ai");
+        const typingEl = addTyping();
+
+        try {
+          const memory = await loadMemory();
+          const response = await generateResponse(text, memory);
+
+          typingEl.remove();
+          addMsg(response, "ai");
+          await saveMessage('assistant', response);
         } catch (err) {
-          addMsg("error de conexión", "ai");
+          typingEl.remove();
+          addMsg("Error: " + err.message, "ai");
         }
 
         btn.disabled = false;
@@ -159,42 +355,44 @@
         if (e.key === "Enter") send();
       });
 
-      document.getElementById("file-btn").addEventListener("click", () => {
-        document.getElementById("file-input").click();
+      fileBtn.addEventListener("click", () => fileInput.click());
+
+      fileInput.addEventListener("change", async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        addMsg(`📎 ${file.name}`, "user");
+        btn.disabled = true;
+
+        try {
+          const content = await file.text();
+          await supabase.from('file_memory').upsert({
+            user_id: userId,
+            file_name: file.name,
+            content
+          }, { onConflict: 'user_id,file_name' });
+
+          addMsg(`Archivo "${file.name}" guardado en memoria.`, "ai");
+        } catch (err) {
+          addMsg("Error al subir archivo: " + err.message, "ai");
+        }
+
+        btn.disabled = false;
+        e.target.value = "";
       });
 
-      document
-        .getElementById("file-input")
-        .addEventListener("change", async (e) => {
-          const file = e.target.files[0];
-          if (!file) return;
-          const fileName = file.name;
-          addMsg(`📎 ${fileName}`, "user");
-          btn.disabled = true;
-          try {
-            const arrayBuffer = await file.arrayBuffer();
-            const base64 = btoa(
-              String.fromCharCode(...new Uint8Array(arrayBuffer)),
-            );
-            const res = await fetch("/upload-doc", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                userId: "admin",
-                fileName,
-                fileData: base64,
-                fileType: file.type,
-              }),
-            });
+      // Initialize
+      async function init() {
+        try {
+          await loadHistory();
+          setStatus('conectado', true);
+        } catch (err) {
+          setStatus('sin conexión');
+          addMsg('No pude cargar el historial. La base de datos puede estar desconectada.', 'system');
+        }
+      }
 
-            const data = await res.json();
-            addMsg(data.response || "archivo guardado", "ai");
-          } catch (err) {
-            addMsg("error al subir archivo", "ai");
-          }
-          btn.disabled = false;
-          e.target.value = "";
-        });
+      init();
     </script>
   </body>
 </html>

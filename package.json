@@ -3,8 +3,9 @@
   "version": "1.0.0",
   "description": "CoreMind Engine – MVP 5, modular y estable",
   "main": "server.js",
+  "type": "module",
   "scripts": {
-    "start": "node server.js",
+    "start": "vite --host",
     "build": "vite build",
     "preview": "vite preview"
   },

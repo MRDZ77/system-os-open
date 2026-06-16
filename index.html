@@ -215,113 +215,6 @@
         }
       }
 
-      async function loadMemory() {
-        const { data } = await supabase
-          .from('structured_memory')
-          .select('key, value')
-          .eq('user_id', userId);
-
-        const memory = {};
-        data?.forEach(m => {
-          if (!m.key.startsWith('file:')) {
-            memory[m.key] = m.value;
-          }
-        });
-        return memory;
-      }
-
-      async function saveMessage(role, content) {
-        await supabase.from('devchat_memory').insert({
-          user_id: userId,
-          role,
-          content
-        });
-      }
-
-      async function saveMemory(key, value) {
-        await supabase.from('structured_memory').upsert({
-          user_id: userId,
-          key,
-          value
-        }, { onConflict: 'user_id,key' });
-      }
-
-      function detectIntent(text) {
-        const lower = text.toLowerCase();
-
-        if (lower.includes('me llamo')) {
-          const match = text.match(/me llamo (\w+)/i);
-          return { type: 'save_name', value: match?.[1] };
-        }
-
-        if (lower.includes('trabajo en')) {
-          const match = text.match(/trabajo en (.+)/i);
-          return { type: 'save_project', value: match?.[1]?.trim() };
-        }
-
-        if (lower.includes('como me llamo') || lower.includes('quien soy')) {
-          return { type: 'recall_name' };
-        }
-
-        if (lower.includes('en que trabajo') || lower.includes('que proyectos')) {
-          return { type: 'recall_projects' };
-        }
-
-        return { type: 'chat' };
-      }
-
-      async function generateResponse(text, memory) {
-        const intent = detectIntent(text);
-
-        if (intent.type === 'save_name') {
-          await saveMemory('name', intent.value);
-          return `Hola ${intent.value}. Lo recordaré.`;
-        }
-
-        if (intent.type === 'save_project') {
-          const existing = memory.projects || '';
-          const projects = existing ? `${existing}, ${intent.value}` : intent.value;
-          await saveMemory('projects', projects);
-          return `Entendido. Trabajas en ${intent.value}.`;
-        }
-
-        if (intent.type === 'recall_name') {
-          if (memory.name) {
-            return `Te llamas ${memory.name}.`;
-          }
-          return `No tengo tu nombre registrado. ¿Cómo te llamas?`;
-        }
-
-        if (intent.type === 'recall_projects') {
-          if (memory.projects) {
-            return `Trabajas en: ${memory.projects}.`;
-          }
-          return `No tengo registrado en qué trabajas. ¿En qué proyectos estás?`;
-        }
-
-        const responses = [
-          `Entiendo. Cuéntame más sobre eso.`,
-          `Interesante. ¿Y qué más?`,
-          `Ok, estoy escuchando.`,
-          `¿Puedes dar más detalles?`,
-        ];
-
-        const lower = text.toLowerCase();
-
-        if (lower.includes('hola') || lower.includes('hey')) {
-          return `¡Hola! Soy SYSTEM-OS, tu asistente con memoria persistente. Puedo recordar tu nombre y proyectos.`;
-        }
-
-        if (lower.includes('ayuda')) {
-          return `Puedo:
-- Recordar tu nombre (dime: "me llamo X")
-- Recordar tus proyectos (dime: "trabajo en X")
-- Recordar lo que me cuentas (dime: "en que trabajo?" o "como me llamo?")`;
-        }
-
-        return responses[Math.floor(Math.random() * responses.length)];
-      }
-
       async function send() {
         const text = input.value.trim();
         if (!text) return;
@@ -330,17 +223,21 @@
         input.value = "";
         btn.disabled = true;
 
-        await saveMessage('user', text);
-
         const typingEl = addTyping();
 
         try {
-          const memory = await loadMemory();
-          const response = await generateResponse(text, memory);
+          const res = await fetch(`${SUPABASE_URL}/functions/v1/chat`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${SUPABASE_KEY}`,
+            },
+            body: JSON.stringify({ userId, message: text }),
+          });
 
+          const data = await res.json();
           typingEl.remove();
-          addMsg(response, "ai");
-          await saveMessage('assistant', response);
+          addMsg(data.response || data.error || "Sin respuesta", "ai");
         } catch (err) {
           typingEl.remove();
           addMsg("Error: " + err.message, "ai");
@@ -388,7 +285,7 @@
           setStatus('conectado', true);
         } catch (err) {
           setStatus('sin conexión');
-          addMsg('No pude cargar el historial. La base de datos puede estar desconectada.', 'system');
+          addMsg('No pude cargar el historial.', 'system');
         }
       }
 
